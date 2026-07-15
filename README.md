@@ -1,10 +1,27 @@
 # C-BELIEF-Stream
 
-C-BELIEF-Stream is a research pipeline for temporally grounded evidence
-attribution in renal deterioration assessment. It separates evidence available
-at query time from future and retrospective evidence, and evaluates claim
-verification, evidence attribution, temporal leakage, calibration, decision
-curves, and subgroup performance.
+C-BELIEF-Stream is a general research framework for temporally grounded clinical
+evidence attribution and belief updating. It evaluates whether a system can
+distinguish evidence available at decision time from information observed later
+or documented retrospectively.
+
+The framework supports claim verification, hypothesis selection, evidence
+retrieval, delayed reattribution, temporal-leakage analysis, calibration,
+decision-curve analysis, and subgroup evaluation. Its schemas and evaluation
+interfaces are designed to be adapted to different clinical domains.
+
+The current reference dataset instantiates the framework in a focused clinical
+deterioration use case. Domain-specific rules and labels are implementation
+examples rather than constraints of the overall framework.
+
+## Key design principles
+
+- Preserve the information boundary at the clinical query time.
+- Separate visible, future, and retrospective evidence.
+- Evaluate both initial and retrospectively updated conclusions.
+- Track the evidence used to support every prediction.
+- Detect temporal leakage and inappropriate use of future information.
+- Support rule-based, conventional machine-learning, LLM, and agentic methods.
 
 ## Repository scope
 
@@ -12,6 +29,11 @@ This GitHub repository contains code, configuration templates, and tests only.
 Clinical and derived research data are deliberately excluded. See
 [DATA_ACCESS.md](DATA_ACCESS.md) for the planned PhysioNet distribution and the
 expected local directory layout.
+
+The reference release contains 8,000 admission-level samples from 7,219
+individuals, with predefined training, validation, and test partitions. The
+dataset is distributed separately because it is derived from credentialed
+clinical data.
 
 ## Requirements
 

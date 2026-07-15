@@ -1,7 +1,7 @@
 [project]
 name = "cbelief-stream"
 version = "0.1.0"
-description = "C-BELIEF-Stream: temporally grounded evidence attribution for renal deterioration assessment"
+description = "A general framework for temporally grounded clinical evidence attribution and belief updating"
 requires-python = ">=3.10"
 dependencies = [
   "pandas>=2.0",
