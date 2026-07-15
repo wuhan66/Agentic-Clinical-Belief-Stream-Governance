@@ -1,0 +1,16 @@
+skill_id: renal_creatinine_rise_v1
+name: Creatinine Rise Skill
+version: 1.0.0
+status: locked
+task: renal_phenotype_detection
+description: Detects query-time support for acute renal deterioration from creatinine rise events.
+trigger:
+  event_type: trend
+rules:
+  - creatinine_rise_48h supports acute_renal_deterioration when visible before query.
+  - creatinine_rise_7d supports acute_renal_deterioration when visible before query.
+safety_constraints:
+  - future creatinine trends cannot be used as query-time support.
+metrics:
+  - support_precision_at_k
+  - temporal_leakage_rate

@@ -1,0 +1,16 @@
+project_root: .
+data_cleaned_dir: data/cleaned
+data_stream_dir: data/stream
+predictions_dir: data/predictions
+metrics_dir: data/metrics
+audit_dir: data/audit
+outputs_dir: outputs
+
+input_events: data/cleaned/ai_rule_renal_events.parquet
+input_claims: data/cleaned/ai_rule_renal_claims.jsonl
+standardized_events: data/stream/minimal_renal_events.parquet
+patient_streams: data/stream/patient_renal_streams.jsonl
+samples: data/stream/cbelief_stream_samples.jsonl
+train_samples: data/stream/train.jsonl
+val_samples: data/stream/val.jsonl
+test_samples: data/stream/test.jsonl

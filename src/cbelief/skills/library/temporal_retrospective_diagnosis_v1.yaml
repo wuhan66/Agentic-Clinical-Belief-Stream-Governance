@@ -1,0 +1,15 @@
+skill_id: temporal_retrospective_diagnosis_v1
+name: Retrospective Diagnosis Temporal Validator
+version: 1.0.0
+status: locked
+task: temporal_validity
+trigger:
+  event_type: diagnosis
+rules:
+  - discharge-level diagnoses are retrospective_only.
+  - retrospective evidence may support delayed reattribution but not query-time claim support.
+safety_constraints:
+  - diagnosis events from discharge-level tables must not be counted as query-time support.
+metrics:
+  - retrospective_evidence_recognition_rate
+  - retrospective_evidence_misuse_rate

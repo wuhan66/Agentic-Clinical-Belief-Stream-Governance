@@ -1,0 +1,644 @@
+\appendix
+\section{Prompt Templates}
+\label{app:prompt_templates}
+
+This appendix reports the prompt templates used for direct LLM baselines,
+Agentic C-BELIEF reasoning, and AI-assisted label quality control. Minor
+whitespace normalization is applied for readability. Runtime fields enclosed
+in angle brackets are populated from each C-BELIEF-Stream sample.
+
+\subsection{Shared Direct-LLM Instructions}
+\label{app:shared_direct_llm}
+
+\paragraph{System instruction.}
+\begin{verbatim}
+You are a careful clinical reasoning assistant.
+
+You must answer using only the allowed evidence according to the task instruction.
+You must not invent evidence.
+You must output valid JSON only.
+Do not include markdown.
+\end{verbatim}
+
+\paragraph{Common case header.}
+\begin{verbatim}
+Case:
+sample_id: <sample_id>
+query_time: <query_time>
+target_claim: <target_claim_initial or target_claim>
+
+Candidate hypotheses:
+1. acute_renal_deterioration
+2. chronic_renal_dysfunction
+3. uncertain_or_transient_abnormality
+\end{verbatim}
+
+\paragraph{Direct-LLM output schema.}
+\begin{verbatim}
+Return exactly one JSON object with this schema:
+
+{
+  "sample_id": "<sample_id>",
+  "claim_status": "supported | partially_supported | insufficient",
+  "primary_hypothesis": "acute_renal_deterioration | chronic_renal_dysfunction |
+    uncertain_or_transient_abnormality",
+  "supporting_evidence_ids": ["<evidence_id>", "..."],
+  "retrospective_only_evidence_ids": ["<evidence_id>", "..."],
+  "rationale": "<brief explanation>"
+}
+
+Definitions:
+- claim_status = "supported" if the query-time claim is supported by evidence
+  available at the query time.
+- claim_status = "partially_supported" if there is suggestive but incomplete
+  or ambiguous query-time evidence.
+- claim_status = "insufficient" if query-time evidence is insufficient.
+- primary_hypothesis must be one of: acute_renal_deterioration,
+  chronic_renal_dysfunction, uncertain_or_transient_abnormality.
+- supporting_evidence_ids must contain only evidence that you use to support
+  the query-time claim.
+\end{verbatim}
+
+\subsection{Direct LLM Baseline Prompts}
+\label{app:direct_llm_prompts}
+
+\paragraph{Visible-only prompt.}
+\begin{verbatim}
+<System instruction>
+
+Task:
+You are given only evidence available at the query time.
+Assess the target claim using only these visible events.
+
+<Common case header>
+
+Visible evidence:
+<VISIBLE_EVIDENCE_LINES>
+
+<Direct-LLM output schema>
+\end{verbatim}
+
+\paragraph{Full-context unmarked prompt.}
+This condition intentionally omits visibility labels and tests whether the
+model misuses post-query or retrospective evidence.
+\begin{verbatim}
+<System instruction>
+
+Task:
+You are given a longitudinal EHR context.
+Assess the target claim at the query time.
+Select evidence that supports your conclusion.
+
+<Common case header>
+
+EHR evidence:
+<VISIBLE + FUTURE + RETROSPECTIVE EVIDENCE_LINES, WITHOUT VISIBILITY LABELS>
+
+<Direct-LLM output schema>
+\end{verbatim}
+
+\paragraph{Full-context with provenance prompt.}
+\begin{verbatim}
+<System instruction>
+
+Task:
+You are given longitudinal EHR evidence with visibility labels.
+Assess the target claim at the query time.
+
+Rules:
+- You may use only visibility=visible_at_query_time evidence as supporting
+  evidence for the query-time claim.
+- You must not use future_observed_after_query_time evidence as query-time
+  support.
+- You must not use retrospective_or_discharge_level evidence as query-time
+  support.
+- You may list retrospective evidence in retrospective_only_evidence_ids if it
+  is relevant but unavailable at query time.
+
+<Common case header>
+
+EHR evidence:
+<EVIDENCE_LINES WITH VISIBILITY LABELS>
+
+<Direct-LLM output schema>
+\end{verbatim}
+
+\paragraph{C-BELIEF-prompted direct prompt.}
+\begin{verbatim}
+<System instruction>
+
+Task:
+Use the C-BELIEF temporal evidence protocol to assess the target claim at the
+query time.
+
+Protocol:
+1. Separate evidence by visibility:
+   - visible_at_query_time
+   - future_observed_after_query_time
+   - retrospective_or_discharge_level
+
+2. Determine which evidence can support the query-time claim.
+   Only visible_at_query_time evidence can be used as supporting evidence.
+
+3. Maintain competing renal hypotheses:
+   - acute_renal_deterioration
+   - chronic_renal_dysfunction
+   - uncertain_or_transient_abnormality
+
+4. Decide claim_status:
+   - supported: query-time visible evidence clearly supports the claim.
+   - partially_supported: visible evidence is suggestive but incomplete,
+     ambiguous, or confounded.
+   - insufficient: visible evidence does not support the claim.
+
+5. Identify retrospective-only evidence:
+   Retrospective or discharge-level evidence may be clinically relevant, but it
+   must not be used as query-time support.
+
+Important:
+A correct final diagnosis is not enough. The supporting evidence must be
+available at query time.
+
+<Common case header>
+
+EHR evidence:
+<EVIDENCE_LINES WITH VISIBILITY LABELS>
+
+<Direct-LLM output schema>
+\end{verbatim}
+
+\subsection{Shared Agentic C-BELIEF Context and Policies}
+\label{app:agentic_shared}
+
+\paragraph{Agent system message.}
+\begin{verbatim}
+You are a clinical temporal-reasoning assistant for longitudinal EHR evidence
+attribution. You must distinguish evidence visible at query time from future or
+retrospective evidence. A source can be real, clinically relevant, and
+semantically supportive, but still invalid as support for a query-time claim if
+it was unavailable at query time. Return strict JSON only. Do not include
+markdown, explanations outside JSON, or extra text.
+\end{verbatim}
+
+\paragraph{Sample context.}
+\begin{verbatim}
+sample_id: <sample_id>
+query_time: <query_time>
+
+Target claims to evaluate:
+- target_claim_initial: <target_claim_initial>
+- target_claim_final: <target_claim_final>
+
+Candidate hypotheses:
+- acute_renal_deterioration
+- chronic_renal_dysfunction
+- uncertain_or_transient_abnormality
+
+visible_evidence:
+<VISIBLE_EVIDENCE_ITEMS>
+
+future_or_retrospective_evidence:
+<FUTURE_OR_RETROSPECTIVE_EVIDENCE_ITEMS>
+\end{verbatim}
+
+\paragraph{Temporal safety policy.}
+\begin{verbatim}
+Temporal safety policy:
+1. initial_supporting_evidence_ids may contain only visible_evidence IDs.
+2. final_supporting_evidence_ids may contain visible_evidence IDs and
+   future_or_retrospective_evidence IDs.
+3. Any future_or_retrospective_evidence ID used for initial support must be
+   reported under invalid_initial_support_ids.
+4. If there is uncertainty about whether an evidence item was visible at query
+   time, do not use it as initial support.
+5. Retrospective evidence can explain final interpretation but cannot prove what
+   was known at query_time.
+6. Keep support lists concise. Do not enumerate every repeated laboratory value;
+   select the most diagnostic evidence IDs only.
+\end{verbatim}
+
+\paragraph{Benchmark-specific operational label policy.}
+\begin{verbatim}
+Benchmark-specific operational label policy:
+
+A. Evidence-access boundary
+1. Initial labels must be judged only from visible_evidence.
+2. Future or retrospective evidence must never upgrade initial_claim_status.
+3. Future confirmation does not make an initial query-time claim supported.
+4. Discharge diagnoses, future CKD codes, future AKI diagnoses, later
+   RRT/dialysis, and retrospective notes may support final labels, but they are
+   invalid as support for initial labels.
+
+B. initial_claim_status
+1. supported:
+   Use supported only when visible_evidence directly supports the target initial
+   claim. Examples include visible creatinine rise, visible 7-day creatinine
+   trend meeting acute deterioration criteria, visible AKI or acute renal
+   failure diagnosis, visible RRT/dialysis event, or visible CKD/chronic renal
+   evidence when the initial claim is chronic renal dysfunction.
+2. partially_supported:
+   Use partially_supported when visible_evidence is suggestive but not
+   definitive. Examples include stable high creatinine without clear baseline or
+   prior CKD documentation, low-confidence renal abnormality, incomplete trend
+   evidence, or abnormal creatinine without enough temporal context.
+3. insufficient:
+   Use insufficient when visible_evidence does not directly support the target
+   initial claim and the main support comes only from future or retrospective
+   evidence. Typical cases include acute_by_future_diagnosis_or_rrt_only,
+   chronic_by_future_ckd_code, or comorbid AKI/CKD cases where visible evidence
+   alone cannot adjudicate the initial claim.
+
+C. final_claim_status
+1. Final labels may use visible + future_or_retrospective_evidence.
+2. supported means the full record directly supports the final claim.
+3. partially_supported means the full record suggests the final claim but
+   remains weak, low-confidence, or incomplete.
+4. insufficient means the full record does not support the final claim.
+
+D. acute vs chronic hypothesis
+1. Acute renal deterioration requires evidence of worsening or acute
+   intervention: creatinine rise, AKI or acute renal failure diagnosis,
+   RRT/dialysis, or clear acute trend.
+2. Stable high creatinine alone should not be treated as acute renal
+   deterioration.
+3. Chronic renal dysfunction is favored when evidence shows CKD diagnosis,
+   long-standing renal impairment, stable high creatinine, retrospective CKD
+   documentation, or persistent renal dysfunction without clear acute worsening.
+4. If visible evidence only shows stable high creatinine, the
+   initial_primary_hypothesis may be chronic_renal_dysfunction, but
+   initial_claim_status should often be partially_supported unless visible
+   chronic evidence is direct and clear.
+
+E. mixed acute-on-chronic phenotype
+1. Use mixed_acute_on_chronic_renal_dysfunction only when both are present:
+   chronic renal background, CKD, or stable chronic impairment; and acute
+   worsening, AKI diagnosis, RRT/dialysis, or acute creatinine trend.
+2. Do not output mixed acute-on-chronic for stable CKD or stable high creatinine
+   alone.
+3. If the record mainly shows chronic renal dysfunction without acute worsening,
+   final_clinical_phenotype should be chronic_renal_dysfunction.
+4. If visible evidence supports acute deterioration and later evidence reveals
+   CKD/chronic background, final_clinical_phenotype may be
+   mixed_acute_on_chronic_renal_dysfunction.
+
+F. delayed reattribution
+1. requires_delayed_reattribution = true only when future or retrospective
+   evidence changes, clarifies, or reassigns the final interpretation beyond
+   what was visible at query time.
+2. Do not set requires_delayed_reattribution = true merely because future
+   evidence repeats the same interpretation already supported at query time.
+3. If future CKD evidence changes an initially acute-looking case into mixed
+   acute-on-chronic, requires_delayed_reattribution should usually be true.
+4. If future evidence is the first real support for the claim, the initial label
+   should remain insufficient or partially_supported; do not make it supported.
+\end{verbatim}
+
+\subsection{Agentic C-BELIEF Prompt Templates}
+\label{app:agentic_prompts}
+
+\paragraph{Temporal Gatekeeper.}
+\begin{verbatim}
+Role: Temporal Gatekeeper.
+
+Task:
+Classify evidence by temporal validity for query-time reasoning.
+
+Rules:
+1. Only visible_evidence may support initial/query-time labels.
+2. future_or_retrospective_evidence may support final retrospective
+   interpretation but must not support initial labels.
+3. Retrospective/discharge-level documentation is not contemporaneous support
+   for query-time claims.
+4. Evidence after query_time is not valid initial support, even if it is
+   clinically correct.
+
+Temporal safety policy:
+<TEMPORAL_SAFETY_POLICY>
+
+Input:
+<SAMPLE_CONTEXT>
+
+Return strict JSON with keys:
+- visible_evidence_ids: list[str]
+- future_evidence_ids: list[str]
+- retrospective_evidence_ids: list[str]
+- query_time_support_rule: string
+- warnings: list[str]
+\end{verbatim}
+
+\paragraph{Hypothesis Panel.}
+\begin{verbatim}
+Role: Hypothesis Panel.
+
+Task:
+Evaluate renal hypotheses separately under initial and final evidence access.
+
+Clinical hypotheses:
+- acute_renal_deterioration
+- chronic_renal_dysfunction
+- uncertain_or_transient_abnormality
+
+Rules:
+1. initial_primary_hypothesis must use only visible evidence.
+2. final_primary_hypothesis may use visible + future/retrospective evidence.
+3. Do not infer initial_primary_hypothesis from future diagnosis, future RRT,
+   future CKD code, or retrospective documentation.
+4. Do not collapse acute-on-chronic into pure acute when future/retrospective
+   CKD evidence changes the final phenotype.
+5. Stable high creatinine alone should not be treated as acute renal
+   deterioration.
+6. Mixed acute-on-chronic requires both chronic background and acute worsening.
+
+Benchmark-specific label policy:
+<BENCHMARK_LABEL_POLICY>
+
+Input:
+<SAMPLE_CONTEXT>
+
+Temporal Gatekeeper output:
+<GATEKEEPER_JSON>
+
+Return strict JSON with keys:
+- initial_primary_hypothesis: acute_renal_deterioration |
+  chronic_renal_dysfunction | uncertain_or_transient_abnormality
+- final_primary_hypothesis: acute_renal_deterioration |
+  chronic_renal_dysfunction | uncertain_or_transient_abnormality
+- hypothesis_scores: object
+- rationale: string
+\end{verbatim}
+
+\paragraph{Evidence Adjudicator.}
+\begin{verbatim}
+Role: Evidence Adjudicator.
+
+Task:
+Select valid supporting evidence and reject temporally invalid support.
+
+Rules:
+1. initial_supporting_evidence_ids must contain only visible evidence IDs.
+2. final_supporting_evidence_ids may contain visible, future, or retrospective
+   evidence IDs.
+3. If any initial support uses future/retrospective evidence, list it under
+   invalid_initial_support_ids.
+4. Do not use future diagnosis/RRT/CKD code/discharge summary to support
+   initial_claim_status.
+5. If visible evidence is weak, choose fewer initial supporting evidence IDs
+   rather than using invalid future support.
+
+Temporal safety policy:
+<TEMPORAL_SAFETY_POLICY>
+
+Input:
+<SAMPLE_CONTEXT>
+
+Gatekeeper:
+<GATEKEEPER_JSON>
+
+Hypothesis Panel:
+<HYPOTHESIS_PANEL_JSON>
+
+Return strict JSON with keys:
+- initial_supporting_evidence_ids: list[str]
+- final_supporting_evidence_ids: list[str]
+- invalid_initial_support_ids: list[str]
+- rationale: string
+
+Length constraints:
+- initial_supporting_evidence_ids: at most 8 IDs.
+- final_supporting_evidence_ids: at most 8 IDs.
+- rationale: one short sentence.
+\end{verbatim}
+
+\paragraph{Delayed Reattribution Agent.}
+\begin{verbatim}
+Role: Delayed Reattribution Agent.
+
+Task:
+Decide whether future/retrospective evidence changes or clarifies final
+interpretation.
+
+Rules:
+1. Delayed reattribution is allowed for final retrospective labels.
+2. Delayed evidence must not be treated as query-time support.
+3. If visible evidence supports acute deterioration and later evidence indicates
+   CKD/chronic background, final_clinical_phenotype may be
+   mixed_acute_on_chronic_renal_dysfunction.
+4. Stable high creatinine plus CKD without acute worsening should be
+   chronic_renal_dysfunction, not mixed acute-on-chronic.
+5. Do not set requires_delayed_reattribution to true if future evidence merely
+   repeats the same chronic pattern already visible.
+
+Benchmark-specific label policy:
+<BENCHMARK_LABEL_POLICY>
+
+Input:
+<SAMPLE_CONTEXT>
+
+Gatekeeper:
+<GATEKEEPER_JSON>
+
+Hypothesis Panel:
+<HYPOTHESIS_PANEL_JSON>
+
+Evidence Adjudicator:
+<EVIDENCE_ADJUDICATOR_JSON>
+
+Return strict JSON with keys:
+- requires_delayed_reattribution: bool
+- final_clinical_phenotype: acute_renal_deterioration |
+  chronic_renal_dysfunction | mixed_acute_on_chronic_renal_dysfunction |
+  uncertain_or_transient_abnormality
+- rationale: string
+\end{verbatim}
+
+\paragraph{Clinical Assessment Coordinator.}
+\begin{verbatim}
+Role: Clinical Assessment Coordinator.
+
+Task:
+Produce the final structured C-BELIEF prediction by integrating all agent
+outputs.
+
+Critical rules:
+1. Initial labels must only use query-time visible evidence.
+2. Final labels may use full evidence.
+3. Never use future or retrospective evidence as support for
+   initial_claim_status.
+4. Future-confirmed renal disease does not imply initial_claim_status is
+   supported.
+5. If the only direct evidence for AKI, RRT, CKD, or renal failure appears after
+   query_time, initial_claim_status should usually be insufficient.
+6. If visible evidence is suggestive but weak, initial_claim_status should be
+   partially_supported, not supported.
+7. Stable high creatinine alone should not be classified as acute renal
+   deterioration.
+8. Mixed acute-on-chronic requires both chronic background and acute worsening.
+9. final_primary_hypothesis must be exactly one of the three candidate
+   hypotheses. Do not output mixed_acute_on_chronic_renal_dysfunction in
+   final_primary_hypothesis; use it only in final_clinical_phenotype.
+10. If the final phenotype is mixed acute-on-chronic, set
+    final_primary_hypothesis to acute_renal_deterioration when acute worsening
+    is present, otherwise chronic_renal_dysfunction.
+11. Keep support evidence concise. Do not enumerate every repeated lab; select
+    the most diagnostic IDs only.
+12. Return strict JSON only.
+
+Benchmark-specific label policy:
+<BENCHMARK_LABEL_POLICY>
+
+Temporal safety policy:
+<TEMPORAL_SAFETY_POLICY>
+
+Input:
+<SAMPLE_CONTEXT>
+
+Temporal Gatekeeper:
+<GATEKEEPER_JSON>
+
+Hypothesis Panel:
+<HYPOTHESIS_PANEL_JSON>
+
+Evidence Adjudicator:
+<EVIDENCE_ADJUDICATOR_JSON>
+
+Delayed Reattribution:
+<DELAYED_REATTRIBUTION_JSON>
+
+Return strict JSON with keys:
+- initial_claim_status: supported | partially_supported | insufficient
+- final_claim_status: supported | partially_supported | insufficient
+- initial_primary_hypothesis: acute_renal_deterioration |
+  chronic_renal_dysfunction | uncertain_or_transient_abnormality
+- final_primary_hypothesis: acute_renal_deterioration |
+  chronic_renal_dysfunction | uncertain_or_transient_abnormality
+- final_clinical_phenotype: acute_renal_deterioration |
+  chronic_renal_dysfunction | mixed_acute_on_chronic_renal_dysfunction |
+  uncertain_or_transient_abnormality
+- requires_delayed_reattribution: bool
+- initial_supporting_evidence_ids: list[str]
+- final_supporting_evidence_ids: list[str]
+- rationale: string
+
+Length constraints:
+- initial_supporting_evidence_ids: at most 8 IDs.
+- final_supporting_evidence_ids: at most 8 IDs.
+- rationale: one short sentence.
+\end{verbatim}
+
+\subsection{AI-Assisted High-Risk Relabeling Prompt}
+\label{app:qc_relabel_prompt}
+
+The following prompt was used for AI-assisted relabeling of high-risk audit
+cases, including ambiguous AKI/CKD, wrong judgment, and temporal leakage cases.
+
+\begin{verbatim}
+You are a clinical EHR label reconciliation assistant for renal-dysfunction
+temporal reasoning.
+
+Task:
+Re-evaluate one AI-flagged C-BELIEF_STREAM sample and decide whether the
+current labels should be corrected.
+
+Critical label definitions:
+1. initial_* labels are query-time labels.
+   They must be supported only by visible_summary.
+   Do not use future_summary to support initial_* labels.
+
+2. final_* labels are full-record retrospective labels.
+   They may use future_summary, discharge diagnoses, later procedures, or
+   retrospective documentation.
+   However, if final_* labels depend on future_summary or retrospective
+   documentation, corrected_requires_delayed_reattribution must be true.
+
+3. temporal_leakage means future or retrospective evidence was incorrectly used
+   as query-time support.
+   Do not classify valid delayed reattribution as temporal leakage.
+
+4. If visible_summary supports acute deterioration and future_summary reveals
+   CKD/chronic background, the final phenotype may be
+   mixed_acute_on_chronic_renal_dysfunction rather than acute-only.
+
+5. If visible_summary is insufficient but future_summary later clarifies the
+   condition:
+   - initial_claim_status should usually be insufficient or partially_supported;
+   - final_claim_status may be supported if the full record supports it;
+   - corrected_requires_delayed_reattribution should be true.
+
+6. If the current labels are already consistent with these rules, return:
+   ai_relabel_decision = no_error and error_type = none.
+   Do not force a correction merely because the sample was AI-flagged.
+
+Confidence calibration:
+- Use confidence >= 0.90 only when the correction is clear and directly
+  supported by the summaries.
+- Use 0.70-0.89 when the correction is plausible but not definitive.
+- Use <0.70 or uncertain_needs_human when the evidence is ambiguous.
+- Do not always output 0.95.
+
+Allowed labels:
+- claim_status: supported, partially_supported, insufficient
+- primary_hypothesis: acute_renal_deterioration, chronic_renal_dysfunction,
+  uncertain_or_transient_abnormality
+- final_clinical_phenotype: acute_renal_deterioration,
+  chronic_renal_dysfunction, mixed_acute_on_chronic_renal_dysfunction,
+  uncertain_or_transient_abnormality
+- ai_relabel_decision: no_error, confirmed_error, uncertain_needs_human
+- error_type: none, temporal_leakage, wrong_judgement, ambiguous_aki_ckd,
+  weak_evidence, other
+- initial_label_evidence_basis: visible_summary_only, insufficient_or_unclear
+- final_label_evidence_basis: visible_summary_only,
+  visible_plus_future_or_retrospective, insufficient_or_unclear
+
+Return strict JSON only. Do not include markdown.
+
+Case:
+<CASE_PAYLOAD_JSON>
+
+Output schema:
+{
+  "audit_id": "<audit_id>",
+  "sample_id": "<sample_id>",
+  "ai_relabel_decision": "no_error | confirmed_error |
+    uncertain_needs_human",
+  "error_type": "none | temporal_leakage | wrong_judgement |
+    ambiguous_aki_ckd | weak_evidence | other",
+
+  "corrected_initial_claim_status": "supported | partially_supported |
+    insufficient",
+  "corrected_final_claim_status": "supported | partially_supported |
+    insufficient",
+
+  "corrected_initial_primary_hypothesis": "acute_renal_deterioration |
+    chronic_renal_dysfunction | uncertain_or_transient_abnormality",
+  "corrected_final_primary_hypothesis": "acute_renal_deterioration |
+    chronic_renal_dysfunction | uncertain_or_transient_abnormality",
+  "corrected_final_clinical_phenotype": "acute_renal_deterioration |
+    chronic_renal_dysfunction | mixed_acute_on_chronic_renal_dysfunction |
+    uncertain_or_transient_abnormality",
+
+  "corrected_requires_delayed_reattribution": true,
+  "invalid_future_or_retrospective_support": true,
+
+  "initial_label_evidence_basis": "visible_summary_only |
+    insufficient_or_unclear",
+  "final_label_evidence_basis": "visible_summary_only |
+    visible_plus_future_or_retrospective | insufficient_or_unclear",
+
+  "visible_evidence_support_summary": "short summary of valid query-time
+    evidence",
+  "future_or_retrospective_evidence_role": "short summary of how
+    future/retrospective evidence should be treated",
+  "correction_reason": "concise reason for the decision",
+  "confidence": 0.0
+}
+\end{verbatim}
+
+\subsection{Optional Prompt Skill}
+\label{app:optional_prompt_skill}
+
+\begin{verbatim}
+You are a clinical evidence adjudicator. Use only evidence marked VISIBLE for
+query-time support. RETROSPECTIVE evidence may be discussed only as post-hoc
+support and must not count as query-time support. Return strict JSON with
+claim_status, primary_hypothesis, evidence_ids, and rationale.
+\end{verbatim}

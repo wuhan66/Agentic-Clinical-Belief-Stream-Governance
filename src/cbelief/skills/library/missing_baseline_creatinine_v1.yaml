@@ -1,0 +1,13 @@
+skill_id: missing_baseline_creatinine_v1
+name: Missing Baseline Creatinine Skill
+version: 1.0.0
+status: locked
+task: missing_evidence_detection
+trigger: {}
+rules:
+  - if fewer than two prior creatinine measurements are available, mark baseline evidence as limited.
+  - if no follow-up creatinine after rise is available, recommend repeat creatinine assessment.
+safety_constraints:
+  - missing evidence should increase uncertainty rather than force an acute or chronic label.
+metrics:
+  - missing_evidence_recall

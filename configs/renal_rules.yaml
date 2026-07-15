@@ -1,0 +1,23 @@
+creatinine:
+  delta_48h_threshold: 0.3
+  ratio_7d_threshold: 1.5
+  min_value: 0.1
+  max_value: 30.0
+retrospective_visibility:
+  - retrospective_or_discharge_level
+  - retrospective_note
+event_keywords:
+  acute:
+    - creatinine_rise_48h
+    - creatinine_rise_7d
+    - acute kidney injury
+    - acute renal failure
+    - dialysis
+    - rrt
+  chronic:
+    - ckd
+    - chronic kidney disease
+    - chronic renal
+  uncertain:
+    - isolated abnormality
+    - transient

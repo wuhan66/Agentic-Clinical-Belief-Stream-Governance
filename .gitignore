@@ -1,0 +1,36 @@
+# Restricted research data (distributed separately through PhysioNet)
+/data/
+
+# Generated outputs
+/outputs/
+/nohup.out
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+.venv/
+venv/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local Codex/agent state
+/.agents/
+/.codex/

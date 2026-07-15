@@ -1,0 +1,42 @@
+# 功能说明：
+# 1. 配置 Agentic C-BELIEF 推理实验参数。
+# 2. 支持 API backend 和 HuggingFace 本地模型 backend。
+# 3. CLI 参数优先级高于本配置文件。
+
+experiment:
+  name: agentic_cbelief_v3
+  output_jsonl: outputs/agentic_cbelief/agentic_n100_qwen3_8b_hf.jsonl
+  resume: true
+  sleep: 0.0
+
+data:
+  input_jsonl: data/cbelief_samples_v2_2/cbelief_stream_samples_v2_2_ai_assisted_corrected.jsonl
+  limit: 2000
+  offset: 0
+
+llm:
+  backend: hf_local   # mock | deepseek | openai_compatible | api | hf_local
+
+  api:
+    api_key_env: DEEPSEEK_API_KEY
+    api_base_env: DEEPSEEK_API_BASE
+    model_env: DEEPSEEK_MODEL
+    default_api_base: https://api.deepseek.com/chat/completions
+    default_model: deepseek-chat
+    timeout: 120
+    max_retries: 3
+
+  hf_local:
+    # Set this to a local model path or model identifier, or export
+    # CBELIEF_HF_MODEL.
+    model_name_or_path: Qwen/Qwen3-8B
+    torch_dtype: float16
+    device_map: auto
+    trust_remote_code: false
+    max_new_tokens: 2048
+    do_sample: false
+    use_chat_template: true
+    # cuda_visible_devices: "0"
+
+generation:
+  strip_think_tags: true
