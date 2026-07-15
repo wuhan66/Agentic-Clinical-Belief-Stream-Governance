@@ -6,6 +6,9 @@
 /nohup.out
 *.log
 
+# Local manuscript and appendix sources
+/*.tex
+
 # Python
 __pycache__/
 *.py[cod]
